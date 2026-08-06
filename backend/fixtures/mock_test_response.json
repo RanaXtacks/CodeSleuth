@@ -1,0 +1,43 @@
+{
+  "request_id": "f9e8d7c6-b5a4-3210-fedc-ba9876543210",
+  "tests": [
+    {
+      "test_name": "test_validate_token_rejects_empty_string",
+      "target_function": "app.auth.validate_token",
+      "generated_code": "import pytest\nfrom app.auth import validate_token\n\ndef test_validate_token_rejects_empty_string():\n    \"\"\"Empty token should raise ValueError.\"\"\"\n    with pytest.raises(ValueError, match=\"Token cannot be empty\"):\n        validate_token(\"\")\n",
+      "execution": {
+        "status": "passed",
+        "stdout": "test_validate_token_rejects_empty_string PASSED",
+        "stderr": "",
+        "duration_ms": 12
+      }
+    },
+    {
+      "test_name": "test_validate_token_rejects_none",
+      "target_function": "app.auth.validate_token",
+      "generated_code": "import pytest\nfrom app.auth import validate_token\n\ndef test_validate_token_rejects_none():\n    \"\"\"None token should raise TypeError.\"\"\"\n    with pytest.raises(TypeError):\n        validate_token(None)\n",
+      "execution": {
+        "status": "passed",
+        "stdout": "test_validate_token_rejects_none PASSED",
+        "stderr": "",
+        "duration_ms": 8
+      }
+    },
+    {
+      "test_name": "test_parse_config_handles_missing_file",
+      "target_function": "app.utils.parse_config",
+      "generated_code": "import pytest\nfrom app.utils import parse_config\n\ndef test_parse_config_handles_missing_file():\n    \"\"\"parse_config should raise FileNotFoundError for missing files.\"\"\"\n    with pytest.raises(FileNotFoundError):\n        parse_config(\"/nonexistent/path/config.json\")\n",
+      "execution": {
+        "status": "failed",
+        "stdout": "",
+        "stderr": "FAILED test_parse_config_handles_missing_file - AssertionError: parse_config returned None instead of raising FileNotFoundError. The bare except clause on line 17 silently swallows this error.",
+        "duration_ms": 15
+      }
+    }
+  ],
+  "summary": {
+    "total": 3,
+    "passed": 2,
+    "failed": 1
+  }
+}

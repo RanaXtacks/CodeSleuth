@@ -1,0 +1,16 @@
+[
+  {
+    "rule_id": "python.lang.security.audit.eval-injection",
+    "severity": "critical",
+    "file": "app/auth.py",
+    "line": 42,
+    "raw_message": "Detected the use of eval(). eval() can allow arbitrary code execution if used with user-controlled input. Consider using ast.literal_eval() or a safer alternative."
+  },
+  {
+    "rule_id": "python.lang.security.audit.hardcoded-password",
+    "severity": "high",
+    "file": "app/auth.py",
+    "line": 15,
+    "raw_message": "Hardcoded password string detected: 'admin123'. Passwords should not be stored in source code. Use environment variables or a secrets manager."
+  }
+]

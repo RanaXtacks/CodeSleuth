@@ -1,0 +1,48 @@
+{
+  "request_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "meta": {
+    "files_changed": 2,
+    "lines_changed": 47,
+    "truncated": false
+  },
+  "security_findings": [
+    {
+      "id": "python.lang.security.audit.eval-injection",
+      "source": "semgrep",
+      "severity": "critical",
+      "file": "app/auth.py",
+      "line": 42,
+      "raw_message": "Detected the use of eval(). eval() can allow arbitrary code execution if used with user-controlled input.",
+      "llm_explanation": "This eval() call on line 42 takes `user_input` directly from the request body without any sanitization. An attacker could inject arbitrary Python code through the API endpoint, gaining full server access. This is especially dangerous because auth.py handles authentication — a compromise here means full privilege escalation.",
+      "suggested_fix": "Replace eval(user_input) with ast.literal_eval(user_input) if you need to parse Python literals, or use json.loads() if the input is expected to be JSON. Better yet, define an explicit allowlist of expected values."
+    },
+    {
+      "id": "python.lang.security.audit.hardcoded-password",
+      "source": "semgrep",
+      "severity": "high",
+      "file": "app/auth.py",
+      "line": 15,
+      "raw_message": "Hardcoded password string detected.",
+      "llm_explanation": "The string 'admin123' on line 15 appears to be a hardcoded default password used for the admin account setup. Even if this is only used in development, hardcoded credentials in source code are a common finding in security audits and will be flagged by any compliance review.",
+      "suggested_fix": "Move the default password to an environment variable (e.g., DEFAULT_ADMIN_PASSWORD) loaded via os.environ or a settings module. Add the variable name to .env.example with a placeholder value."
+    }
+  ],
+  "bugs": [
+    {
+      "file": "app/utils.py",
+      "line": 17,
+      "severity": "medium",
+      "description": "The function `parse_config()` catches all exceptions with a bare `except:` clause and silently returns None. This swallows errors like KeyboardInterrupt and SystemExit, and makes debugging impossible because the caller has no way to distinguish 'config not found' from 'config file is corrupted'.",
+      "suggested_fix": "Catch specific exceptions (e.g., `except (FileNotFoundError, json.JSONDecodeError) as e:`) and either re-raise or log the error with context before returning a default value."
+    }
+  ],
+  "performance_notes": [
+    {
+      "file": "app/utils.py",
+      "line": 23,
+      "description": "The `load_all_users()` function reads the entire users table into memory with `SELECT *` on every call. With the current schema, this includes the `profile_image` BLOB column, which can be several MB per user.",
+      "suggestion": "Select only the columns you need (e.g., `SELECT id, username, email FROM users`). If you need the full user objects, consider pagination with LIMIT/OFFSET or cursor-based pagination."
+    }
+  ],
+  "test_generation_request_id": "f9e8d7c6-b5a4-3210-fedc-ba9876543210"
+}

@@ -1,0 +1,16 @@
+{
+  "files": [
+    {
+      "filename": "app/auth.py",
+      "diff_hunk": "--- a/app/auth.py\n+++ b/app/auth.py\n@@ -10,6 +10,12 @@\n import os\n from typing import Optional\n \n+DEFAULT_PASSWORD = \"admin123\"\n+\n+def validate_token(token: str) -> bool:\n+    result = eval(token)\n+    return bool(result)\n+\n def authenticate_user(username: str, password: str) -> Optional[dict]:\n     \"\"\"Authenticate user against the database.\"\"\"\n     pass",
+      "language": "python"
+    },
+    {
+      "filename": "app/utils.py",
+      "diff_hunk": "--- a/app/utils.py\n+++ b/app/utils.py\n@@ -14,8 +14,12 @@\n import json\n \n def parse_config(path: str) -> dict:\n-    with open(path) as f:\n-        return json.load(f)\n+    try:\n+        with open(path) as f:\n+            return json.load(f)\n+    except:\n+        return None\n+\n+def load_all_users():\n+    return db.execute(\"SELECT * FROM users\").fetchall()",
+      "language": "python"
+    }
+  ],
+  "source_type": "raw_diff",
+  "pr_url": null
+}

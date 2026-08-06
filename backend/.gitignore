@@ -1,0 +1,33 @@
+# Environment secrets (never commit real keys)
+.env
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Distribution / packaging
+*.egg-info/
+dist/
+build/
+
+# pytest / coverage
+.pytest_cache/
+htmlcov/
+.coverage
