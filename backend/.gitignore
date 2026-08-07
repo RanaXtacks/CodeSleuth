@@ -1,5 +1,6 @@
 # Environment secrets (never commit real keys)
 .env
+.env.example
 
 # Python bytecode
 __pycache__/
