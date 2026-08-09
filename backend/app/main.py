@@ -99,9 +99,9 @@ async def review_code(payload: dict):
             system_instruction="You are a strict technical code reviewer. Analyze the code diff and static analysis results, returning ONLY valid JSON matching the requested schema. Never invent vulnerabilities."
         )
 
-        # Using gemini-2.5-flash as it's the current fast model
+        # Using gemini-1.5-flash as it's the current fast model
         response = client.models.generate_content(
-            model='gemini-2.5-flash',
+            model='gemini-1.5-flash',
             contents=prompt,
             config=config
         )

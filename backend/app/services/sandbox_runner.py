@@ -40,7 +40,7 @@ async def generate_and_run_tests(diff_text: str, client: genai.Client) -> list:
 
     try:
         response = client.models.generate_content(
-            model='gemini-2.5-flash',
+            model='gemini-1.5-flash',
             contents=prompt,
             config=config
         )
