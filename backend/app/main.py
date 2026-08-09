@@ -168,3 +168,38 @@ async def generate_tests(payload: dict):
         
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
+
+@app.get("/health")
+async def health_check():
+    """
+    Subsystem health check matching Api_specs.md lines 149-155.
+    Performs real checks on Gemini API key, Semgrep CLI, Pytest sandbox, and GitHub token.
+    """
+    gemini_status = "ok" if os.environ.get("GEMINI_API_KEY") else "missing_api_key"
+    
+    semgrep_status = "ok"
+    try:
+        import subprocess
+        res = subprocess.run(["semgrep", "--version"], capture_output=True, timeout=2)
+        if res.returncode != 0:
+            semgrep_status = "not_available"
+    except Exception:
+        semgrep_status = "not_installed"
+
+    sandbox_status = "ok"
+    try:
+        import pytest
+    except ImportError:
+        sandbox_status = "pytest_missing"
+
+    github_status = "ok" if (os.environ.get("GITHUB_TOKEN") or os.environ.get("GITHUB_PAT")) else "unauthenticated"
+
+    overall = "ok" if (gemini_status == "ok" and semgrep_status == "ok") else "degraded"
+
+    return {
+        "status": overall,
+        "gemini": gemini_status,
+        "semgrep": semgrep_status,
+        "sandbox": sandbox_status,
+        "github": github_status
+    }
