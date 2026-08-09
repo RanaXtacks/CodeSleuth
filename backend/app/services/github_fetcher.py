@@ -24,15 +24,15 @@ async def fetch_pr_diff(pr_url: str) -> Optional[str]:
         "User-Agent": "CodeSleuth-App"
     }
     
-    pat = os.environ.get("GITHUB_PAT")
-    if pat:
-        headers["Authorization"] = f"token {pat}"
+    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GITHUB_PAT")
+    if token:
+        headers["Authorization"] = f"token {token}"
         
     async with httpx.AsyncClient() as client:
-        response = await client.get(api_url, headers=headers, timeout=10.0)
+        response = await client.get(api_url, headers=headers, timeout=15.0)
         
         if response.status_code == 403 and "rate limit" in response.text.lower():
-            raise Exception("GitHub API rate limit exceeded. Please configure a GITHUB_PAT in .env.")
+            raise Exception("GitHub API rate limit exceeded. Please configure GITHUB_TOKEN in your backend .env file.")
         elif response.status_code == 404:
             raise Exception("PR not found. If this is a private repo, ensure GITHUB_PAT is set with repo scope.")
         elif response.status_code != 200:
