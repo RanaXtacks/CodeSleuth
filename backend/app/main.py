@@ -6,6 +6,10 @@ from pydantic import BaseModel
 from typing import List, Optional
 import os
 import uuid
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Import our new services
 from app.services.github_fetcher import fetch_pr_diff, normalize_diff
