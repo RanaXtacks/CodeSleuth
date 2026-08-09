@@ -9,8 +9,13 @@ logger = logging.getLogger(__name__)
 async def fetch_pr_diff(pr_url: str) -> Optional[str]:
     """
     Parses a GitHub PR URL and fetches the raw diff via the GitHub API.
-    Handles unauthenticated and PAT authenticated requests.
+    Handles unauthenticated and PAT authenticated requests with redirect support.
     """
+    if not pr_url or not pr_url.strip():
+        raise ValueError("GitHub PR URL is required.")
+
+    pr_url = pr_url.strip()
+    
     # Example URL: https://github.com/owner/repo/pull/123
     match = re.search(r"github\.com/([^/]+)/([^/]+)/pull/(\d+)", pr_url)
     if not match:
@@ -25,20 +30,24 @@ async def fetch_pr_diff(pr_url: str) -> Optional[str]:
     }
     
     token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GITHUB_PAT")
-    if token:
-        headers["Authorization"] = f"token {token}"
+    if token and token.strip():
+        headers["Authorization"] = f"Bearer {token.strip()}"
         
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(follow_redirects=True) as client:
         response = await client.get(api_url, headers=headers, timeout=15.0)
         
         if response.status_code == 403 and "rate limit" in response.text.lower():
             raise Exception("GitHub API rate limit exceeded. Please configure GITHUB_TOKEN in your backend .env file.")
         elif response.status_code == 404:
-            raise Exception("PR not found. If this is a private repo, ensure GITHUB_PAT is set with repo scope.")
+            raise Exception(f"PR #{pr_number} in {owner}/{repo} not found. If private, ensure GITHUB_TOKEN has repo access.")
         elif response.status_code != 200:
-            raise Exception(f"GitHub API returned {response.status_code}: {response.text}")
+            raise Exception(f"GitHub API returned HTTP {response.status_code}: {response.text}")
             
-        return response.text
+        diff_text = response.text
+        if not diff_text or not diff_text.strip():
+            raise Exception(f"PR #{pr_number} contains no diff changes or files.")
+
+        return diff_text
 
 def normalize_diff(payload: Dict[str, Any]) -> str:
     """

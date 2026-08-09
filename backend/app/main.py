@@ -66,14 +66,31 @@ class ReviewResult(BaseModel):
 async def review_code(payload: dict):
     try:
         # 1. Fetch & Normalize Diff (Member C)
-        if payload.get("source_type") == "github_pr":
-            raw_diff = await fetch_pr_diff(payload.get("pr_url"))
-            diff_text = raw_diff
+        source_type = payload.get("source_type", "raw_diff")
+        if source_type == "github_pr":
+            pr_url = payload.get("pr_url")
+            if not pr_url or not str(pr_url).strip():
+                raise HTTPException(status_code=400, detail={"error": "invalid_input", "detail": "pr_url required when source_type is github_pr"})
+            try:
+                diff_text = await fetch_pr_diff(pr_url)
+            except ValueError as ve:
+                raise HTTPException(status_code=400, detail={"error": "invalid_input", "detail": str(ve)})
         else:
             diff_text = payload.get("diff_text", "")
-            
-        if not diff_text:
-            raise HTTPException(status_code=400, detail="diff_text or pr_url required")
+            if not diff_text or not str(diff_text).strip():
+                raise HTTPException(status_code=400, detail={"error": "invalid_input", "detail": "diff_text required when source_type is raw_diff"})
+
+        # Enforce 2000-line diff limit per Api_specs.md lines 110-112
+        line_count = diff_text.count("\n") + 1
+        if line_count > 2000:
+            raise HTTPException(
+                status_code=413,
+                detail={
+                    "error": "diff_too_large",
+                    "detail": "Diff exceeds 2000 line limit",
+                    "lines_received": line_count
+                }
+            )
 
         # 2. Run Semgrep for grounding (Member B)
         semgrep_findings = run_semgrep(diff_text)
@@ -143,17 +160,20 @@ from app.services.sandbox_runner import generate_and_run_tests
 @app.post("/tests")
 async def generate_tests(payload: dict):
     try:
-        # 1. Fetch & Normalize Diff (Member C)
-        if payload.get("source_type") == "github_pr":
-            raw_diff = await fetch_pr_diff(payload.get("pr_url"))
-            diff_text = raw_diff
+        source_type = payload.get("source_type", "raw_diff")
+        if source_type == "github_pr":
+            pr_url = payload.get("pr_url")
+            if not pr_url or not str(pr_url).strip():
+                raise HTTPException(status_code=400, detail={"error": "invalid_input", "detail": "pr_url required when source_type is github_pr"})
+            try:
+                diff_text = await fetch_pr_diff(pr_url)
+            except ValueError as ve:
+                raise HTTPException(status_code=400, detail={"error": "invalid_input", "detail": str(ve)})
         else:
             diff_text = payload.get("diff_text", "")
-            
-        if not diff_text:
-            raise HTTPException(status_code=400, detail="diff_text or pr_url required")
+            if not diff_text or not str(diff_text).strip():
+                raise HTTPException(status_code=400, detail={"error": "invalid_input", "detail": "diff_text required when source_type is raw_diff"})
 
-        # 2. Run Sandbox (Member B)
         results = await generate_and_run_tests(diff_text, client)
         
         return {
@@ -166,6 +186,8 @@ async def generate_tests(payload: dict):
             }
         }
         
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
 
