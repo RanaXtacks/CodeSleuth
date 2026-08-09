@@ -98,6 +98,47 @@ export default function FindingsPanel({ results }) {
       {renderList('Bugs', parsedData.bugs, 'text-orange-400')}
       {renderList('Performance Notes', parsedData.performance_notes, 'text-yellow-400')}
       
+      {/* Test Sandbox Results */}
+      {results.testResults && (
+        <div className="mb-8">
+          <h3 className="text-lg font-semibold mb-4 pb-2 border-b border-slate-700 text-indigo-400 flex items-center">
+            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
+            Generated Test Sandbox
+          </h3>
+          <div className="space-y-4">
+            {results.testResults.tests?.map((test, i) => (
+              <div key={i} className={`p-4 rounded-md border ${test.execution?.status === 'passed' ? 'bg-green-900/20 border-green-800/50' : 'bg-red-900/20 border-red-800/50'}`}>
+                <div className="flex justify-between items-start mb-2">
+                  <span className="font-mono text-sm font-semibold text-slate-200">
+                    {test.test_name || 'Unknown Test'}
+                  </span>
+                  <span className={`text-xs px-2 py-1 rounded-full uppercase tracking-wider font-bold ${test.execution?.status === 'passed' ? 'bg-green-900/50 text-green-400' : 'bg-red-900/50 text-red-400'}`}>
+                    {test.execution?.status || 'failed'}
+                  </span>
+                </div>
+                <div className="mt-3">
+                  <p className="text-xs text-slate-500 mb-1 uppercase tracking-wider font-semibold">Generated Pytest Code:</p>
+                  <pre className="text-xs bg-slate-950 p-3 rounded text-slate-400 font-mono overflow-x-auto max-h-40">
+                    {test.generated_code}
+                  </pre>
+                </div>
+                {test.execution?.stderr && (
+                  <div className="mt-3">
+                    <p className="text-xs text-red-400 mb-1 uppercase tracking-wider font-semibold">Sandbox Stderr:</p>
+                    <pre className="text-xs bg-slate-950 border border-red-900/50 p-3 rounded text-red-300 font-mono overflow-x-auto max-h-40 whitespace-pre-wrap">
+                      {test.execution.stderr}
+                    </pre>
+                  </div>
+                )}
+              </div>
+            ))}
+            {(!results.testResults.tests || results.testResults.tests.length === 0) && (
+              <p className="text-slate-400 text-sm">No testable functions found or tests are still generating...</p>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Fallback rendering if it's some other JSON format */}
       {(!parsedData.security_findings && !parsedData.bugs && !parsedData.performance_notes) && (
         <div className="bg-slate-900 rounded p-4 overflow-auto border border-slate-700">
