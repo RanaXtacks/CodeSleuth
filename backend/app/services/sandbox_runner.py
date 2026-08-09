@@ -38,13 +38,37 @@ async def generate_and_run_tests(diff_text: str, client: genai.Client) -> list:
         temperature=0.2
     )
 
+    models_to_try = ['gemini-2.0-flash-lite', 'gemini-2.0-flash', 'gemini-1.5-flash']
+    response = None
+
+    for model_name in models_to_try:
+        for attempt in range(2):
+            try:
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=prompt,
+                    config=config
+                )
+                if response and response.text:
+                    break
+            except Exception as e:
+                err_str = str(e).lower()
+                if "404" in err_str or "not_found" in err_str:
+                    break
+                elif "429" in err_str or "resource_exhausted" in err_str or "50" in err_str:
+                    import asyncio
+                    await asyncio.sleep(2)
+                else:
+                    logger.error(f"Gemini call error on model {model_name}: {e}")
+                    break
+        if response and response.text:
+            break
+
     try:
-        response = client.models.generate_content(
-            model='gemini-2.0-flash',
-            contents=prompt,
-            config=config
-        )
-        
+        if not response or not response.text:
+            logger.error("No valid response from Gemini for test generation.")
+            return []
+            
         # Parse the JSON response
         import json
         tests = json.loads(response.text)

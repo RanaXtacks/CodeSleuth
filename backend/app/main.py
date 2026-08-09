@@ -91,7 +91,7 @@ async def review_code(payload: dict):
         {semgrep_findings}
         """
 
-        # 4. Call Gemini with strict JSON schema (Member A)
+        # 4. Call Gemini with strict JSON schema and retry/fallback logic (Member A)
         config = types.GenerateContentConfig(
             response_mime_type="application/json",
             response_schema=ReviewResult,
@@ -99,16 +99,42 @@ async def review_code(payload: dict):
             system_instruction="You are a strict technical code reviewer. Analyze the code diff and static analysis results, returning ONLY valid JSON matching the requested schema. Never invent vulnerabilities."
         )
 
-        # Using gemini-2.0-flash as it's the current fast model
-        response = client.models.generate_content(
-            model='gemini-2.0-flash',
-            contents=prompt,
-            config=config
-        )
+        models_to_try = ['gemini-2.0-flash-lite', 'gemini-2.0-flash', 'gemini-1.5-flash']
+        response = None
+        last_error = None
+
+        for model_name in models_to_try:
+            for attempt in range(2):
+                try:
+                    response = client.models.generate_content(
+                        model=model_name,
+                        contents=prompt,
+                        config=config
+                    )
+                    if response and response.text:
+                        break
+                except Exception as e:
+                    last_error = e
+                    err_str = str(e).lower()
+                    if "404" in err_str or "not_found" in err_str:
+                        # Model not supported on this endpoint/project, break to next model
+                        break
+                    elif "429" in err_str or "resource_exhausted" in err_str or "50" in err_str:
+                        import asyncio
+                        await asyncio.sleep(2)
+                    else:
+                        raise e
+            if response and response.text:
+                break
+
+        if not response or not response.text:
+            raise HTTPException(status_code=502, detail=f"Gemini API error: {last_error}")
         
         # The response.text is guaranteed to be a JSON string matching the ReviewResult schema
         return {"status": "success", "data": response.text}
         
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
 
