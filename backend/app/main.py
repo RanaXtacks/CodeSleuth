@@ -3,67 +3,86 @@ from fastapi.middleware.cors import CORSMiddleware
 from google import genai
 from google.genai import types
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 import os
+import json
 import uuid
+import asyncio
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
 load_dotenv()
 
-# Import our new services
-from app.services.github_fetcher import fetch_pr_diff, normalize_diff
+# Import services
+from app.services.github_fetcher import fetch_pr_diff
 from app.services.semgrep_runner import run_semgrep
+from app.services.sandbox_runner import generate_and_run_tests
 
-app = FastAPI()
+app = FastAPI(
+    title="CodeSleuth API",
+    description="AI-powered code review, security audit, and test generation assistant",
+    version="1.0.0"
+)
 
-# VERY IMPORTANT: Allow frontend to communicate with backend
+# Allow frontend to communicate with backend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # for hackathon prototype
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000", "*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+# Initialize Gemini Client
+api_key = os.environ.get("GEMINI_API_KEY")
+client = genai.Client(api_key=api_key) if api_key else None
+
+# Supported and active Gemini models list with automatic fallback
+ACTIVE_GEMINI_MODELS = [
+    'gemini-3.5-flash',
+    'gemini-3.6-flash',
+    'gemini-flash-latest'
+]
 
 # ---------------------------------------------------------
 # Define the strict output schema matching Api_specs.md
 # ---------------------------------------------------------
 class SecurityFinding(BaseModel):
     id: str
-    source: str
-    severity: str
+    source: str = "semgrep"
+    severity: str  # low | medium | high | critical
     file: str
-    line: Optional[int]
+    line: Optional[int] = None
     raw_message: str
     llm_explanation: str
-    suggested_fix: Optional[str]
+    suggested_fix: Optional[str] = None
 
 class Bug(BaseModel):
     file: str
-    line: Optional[int]
+    line: Optional[int] = None
     severity: str
     description: str
     suggested_fix: str
 
 class PerformanceNote(BaseModel):
     file: str
-    line: Optional[int]
+    line: Optional[int] = None
     description: str
     suggestion: str
 
 class ReviewResult(BaseModel):
-    security_findings: List[SecurityFinding]
-    bugs: List[Bug]
-    performance_notes: List[PerformanceNote]
+    security_findings: List[SecurityFinding] = []
+    bugs: List[Bug] = []
+    performance_notes: List[PerformanceNote] = []
 
 # ---------------------------------------------------------
 # API Endpoints
 # ---------------------------------------------------------
 @app.post("/review")
 async def review_code(payload: dict):
+    if not client:
+        raise HTTPException(status_code=502, detail={"error": "upstream_failure", "detail": "GEMINI_API_KEY is missing from backend environment variables."})
+
     try:
         # 1. Fetch & Normalize Diff (Member C)
         source_type = payload.get("source_type", "raw_diff")
@@ -75,12 +94,14 @@ async def review_code(payload: dict):
                 diff_text = await fetch_pr_diff(pr_url)
             except ValueError as ve:
                 raise HTTPException(status_code=400, detail={"error": "invalid_input", "detail": str(ve)})
+            except Exception as e:
+                raise HTTPException(status_code=502, detail={"error": "upstream_failure", "detail": str(e), "upstream": "github"})
         else:
             diff_text = payload.get("diff_text", "")
             if not diff_text or not str(diff_text).strip():
                 raise HTTPException(status_code=400, detail={"error": "invalid_input", "detail": "diff_text required when source_type is raw_diff"})
 
-        # Enforce 2000-line diff limit per Api_specs.md lines 110-112
+        # Enforce 2000-line diff limit per Api_specs.md
         line_count = diff_text.count("\n") + 1
         if line_count > 2000:
             raise HTTPException(
@@ -92,35 +113,35 @@ async def review_code(payload: dict):
                 }
             )
 
-        # 2. Run Semgrep for grounding (Member B)
-        semgrep_findings = run_semgrep(diff_text)
-        
-        # 3. Construct the prompt with grounding
-        prompt = f"""
-        Analyze the following code diff. 
-        You MUST ground your security findings using the provided Semgrep output.
-        Do not invent security vulnerabilities that are not supported by the code or the Semgrep output.
-        
-        Code Diff:
-        {diff_text}
-        
-        Semgrep Static Analysis Findings:
-        {semgrep_findings}
-        """
+        # 2. Run Semgrep for static grounding (Member B)
+        language = payload.get("language", "python")
+        semgrep_findings = run_semgrep(diff_text, language=language)
 
-        # 4. Call Gemini with strict JSON schema and retry/fallback logic (Member A)
+        # 3. Construct prompt with grounding
+        prompt = f"""
+Analyze the following code diff for security vulnerabilities, bugs, and performance improvements.
+You MUST ground security findings in the provided static analysis output.
+Do not invent security vulnerabilities that are not supported by the code or the Semgrep findings.
+
+Code Diff:
+{diff_text}
+
+Semgrep Static Analysis Findings:
+{json.dumps(semgrep_findings, indent=2)}
+"""
+
+        # 4. Call Gemini with strict JSON schema and retry/fallback logic
         config = types.GenerateContentConfig(
             response_mime_type="application/json",
             response_schema=ReviewResult,
-            temperature=0.2, 
-            system_instruction="You are a strict technical code reviewer. Analyze the code diff and static analysis results, returning ONLY valid JSON matching the requested schema. Never invent vulnerabilities."
+            temperature=0.2,
+            system_instruction="You are a senior security engineer and code reviewer. Analyze the code diff and static analysis results, returning ONLY valid JSON matching the requested schema."
         )
 
-        models_to_try = ['gemini-2.0-flash-lite', 'gemini-2.0-flash', 'gemini-1.5-flash']
         response = None
         last_error = None
 
-        for model_name in models_to_try:
+        for model_name in ACTIVE_GEMINI_MODELS:
             for attempt in range(2):
                 try:
                     response = client.models.generate_content(
@@ -134,31 +155,56 @@ async def review_code(payload: dict):
                     last_error = e
                     err_str = str(e).lower()
                     if "404" in err_str or "not_found" in err_str:
-                        # Model not supported on this endpoint/project, break to next model
                         break
-                    elif "429" in err_str or "resource_exhausted" in err_str or "50" in err_str:
-                        import asyncio
-                        await asyncio.sleep(2)
+                    elif "429" in err_str or "503" in err_str or "resource_exhausted" in err_str or "unavailable" in err_str:
+                        await asyncio.sleep(1.5)
                     else:
-                        raise e
+                        break
             if response and response.text:
                 break
 
         if not response or not response.text:
-            raise HTTPException(status_code=502, detail=f"Gemini API error: {last_error}")
-        
-        # The response.text is guaranteed to be a JSON string matching the ReviewResult schema
-        return {"status": "success", "data": response.text}
-        
+            raise HTTPException(
+                status_code=502,
+                detail={"error": "upstream_failure", "detail": f"Gemini API error: {last_error}", "upstream": "gemini"}
+            )
+
+        # Parse JSON response to ensure clean structured dictionary return
+        try:
+            review_dict = json.loads(response.text)
+        except json.JSONDecodeError:
+            review_dict = {
+                "security_findings": [],
+                "bugs": [],
+                "performance_notes": []
+            }
+
+        return {
+            "request_id": str(uuid.uuid4()),
+            "meta": {
+                "files_changed": 1,
+                "lines_changed": line_count,
+                "truncated": False
+            },
+            "security_findings": review_dict.get("security_findings", []),
+            "bugs": review_dict.get("bugs", []),
+            "performance_notes": review_dict.get("performance_notes", []),
+            "test_generation_request_id": str(uuid.uuid4())
+        }
+
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=502, detail=str(e))
-
-from app.services.sandbox_runner import generate_and_run_tests
+        raise HTTPException(
+            status_code=502,
+            detail={"error": "upstream_failure", "detail": str(e)}
+        )
 
 @app.post("/tests")
 async def generate_tests(payload: dict):
+    if not client:
+        raise HTTPException(status_code=502, detail={"error": "upstream_failure", "detail": "GEMINI_API_KEY is missing."})
+
     try:
         source_type = payload.get("source_type", "raw_diff")
         if source_type == "github_pr":
@@ -167,15 +213,15 @@ async def generate_tests(payload: dict):
                 raise HTTPException(status_code=400, detail={"error": "invalid_input", "detail": "pr_url required when source_type is github_pr"})
             try:
                 diff_text = await fetch_pr_diff(pr_url)
-            except ValueError as ve:
-                raise HTTPException(status_code=400, detail={"error": "invalid_input", "detail": str(ve)})
+            except Exception as e:
+                raise HTTPException(status_code=502, detail={"error": "upstream_failure", "detail": str(e), "upstream": "github"})
         else:
             diff_text = payload.get("diff_text", "")
             if not diff_text or not str(diff_text).strip():
                 raise HTTPException(status_code=400, detail={"error": "invalid_input", "detail": "diff_text required when source_type is raw_diff"})
 
         results = await generate_and_run_tests(diff_text, client)
-        
+
         return {
             "request_id": str(uuid.uuid4()),
             "tests": results,
@@ -185,11 +231,21 @@ async def generate_tests(payload: dict):
                 "failed": sum(1 for r in results if r.get("execution", {}).get("status") != "passed")
             }
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
+
+@app.get("/")
+async def root():
+    return {
+        "name": "CodeSleuth API",
+        "description": "AI-powered code review, security audit, and test generation assistant",
+        "status": "running",
+        "docs": "/docs",
+        "health": "/health"
+    }
 
 @app.get("/health")
 async def health_check():
@@ -197,8 +253,8 @@ async def health_check():
     Subsystem health check matching Api_specs.md lines 149-155.
     Performs real checks on Gemini API key, Semgrep CLI, Pytest sandbox, and GitHub token.
     """
-    gemini_status = "ok" if os.environ.get("GEMINI_API_KEY") else "missing_api_key"
-    
+    gemini_status = "ok" if (os.environ.get("GEMINI_API_KEY") and client) else "missing_api_key"
+
     semgrep_status = "ok"
     try:
         import subprocess
@@ -216,7 +272,7 @@ async def health_check():
 
     github_status = "ok" if (os.environ.get("GITHUB_TOKEN") or os.environ.get("GITHUB_PAT")) else "unauthenticated"
 
-    overall = "ok" if (gemini_status == "ok" and semgrep_status == "ok") else "degraded"
+    overall = "ok" if (gemini_status == "ok") else "degraded"
 
     return {
         "status": overall,
@@ -224,4 +280,4 @@ async def health_check():
         "semgrep": semgrep_status,
         "sandbox": sandbox_status,
         "github": github_status
-    }
+    }

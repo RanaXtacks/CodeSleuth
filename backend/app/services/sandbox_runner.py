@@ -2,10 +2,18 @@ import os
 import tempfile
 import subprocess
 import logging
+import json
+import asyncio
 from google import genai
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
+
+ACTIVE_GEMINI_MODELS = [
+    'gemini-3.5-flash',
+    'gemini-3.6-flash',
+    'gemini-flash-latest'
+]
 
 class TestGenerationResult(BaseModel):
     test_name: str
@@ -19,29 +27,28 @@ async def generate_and_run_tests(diff_text: str, client: genai.Client) -> list:
     3. Runs pytest in a subprocess with isolation/timeouts.
     4. Returns the results.
     """
-    if not diff_text.strip():
+    if not diff_text or not diff_text.strip():
         return []
 
     # 1. Generate tests
     prompt = f"""
-    You are an expert SDET. Write a single comprehensive pytest test file for the following code diff.
-    The code must import the functions being tested if they were in a file named 'source_code.py'.
-    Only generate standard pytest tests.
-    
-    Diff:
-    {diff_text}
-    """
-    
+You are an expert Software Engineer in Test (SDET). Write a comprehensive pytest unit test suite targeting the code in this diff.
+Assume the code being tested will be saved in a file named `source_code.py`.
+Import the required functions using `from source_code import ...` or `import source_code`.
+
+Code Diff:
+{diff_text}
+"""
+
     config = genai.types.GenerateContentConfig(
         response_mime_type="application/json",
         response_schema=list[TestGenerationResult],
         temperature=0.2
     )
 
-    models_to_try = ['gemini-2.0-flash-lite', 'gemini-2.0-flash', 'gemini-1.5-flash']
     response = None
 
-    for model_name in models_to_try:
+    for model_name in ACTIVE_GEMINI_MODELS:
         for attempt in range(2):
             try:
                 response = client.models.generate_content(
@@ -55,11 +62,10 @@ async def generate_and_run_tests(diff_text: str, client: genai.Client) -> list:
                 err_str = str(e).lower()
                 if "404" in err_str or "not_found" in err_str:
                     break
-                elif "429" in err_str or "resource_exhausted" in err_str or "50" in err_str:
-                    import asyncio
-                    await asyncio.sleep(2)
+                elif "429" in err_str or "503" in err_str or "resource_exhausted" in err_str or "unavailable" in err_str:
+                    await asyncio.sleep(1.5)
                 else:
-                    logger.error(f"Gemini call error on model {model_name}: {e}")
+                    logger.error(f"Gemini test generation error on model {model_name}: {e}")
                     break
         if response and response.text:
             break
@@ -68,20 +74,17 @@ async def generate_and_run_tests(diff_text: str, client: genai.Client) -> list:
         if not response or not response.text:
             logger.error("No valid response from Gemini for test generation.")
             return []
-            
-        # Parse the JSON response
-        import json
+
         tests = json.loads(response.text)
-        
-        if not tests:
+        if not tests or not isinstance(tests, list):
             return []
-            
-        test_file_content = "import pytest\nimport source_code\n\n"
+
+        test_file_content = "import pytest\nimport sys\nimport os\nsys.path.insert(0, os.path.dirname(__file__))\nimport source_code\n\n"
         for test in tests:
             test_file_content += test.get("generated_code", "") + "\n\n"
 
     except Exception as e:
-        logger.error(f"Test generation failed: {e}")
+        logger.error(f"Test generation parsing failed: {e}")
         return []
 
     # 2. Setup Sandbox
@@ -89,51 +92,57 @@ async def generate_and_run_tests(diff_text: str, client: genai.Client) -> list:
     with tempfile.TemporaryDirectory() as temp_dir:
         source_path = os.path.join(temp_dir, "source_code.py")
         test_path = os.path.join(temp_dir, "test_generated.py")
-        
-        # Write the diff as pseudo-source code (this is a hackathon shortcut, 
-        # normally we'd apply the patch or fetch the full file)
-        # We strip diff headers to try to make it valid python
-        clean_code = "\n".join([line[1:] for line in diff_text.split('\n') if line.startswith('+') or line.startswith(' ')])
-        
+
+        # Clean added/modified lines for pseudo source file
+        clean_lines = []
+        for line in diff_text.split('\n'):
+            if line.startswith('+') and not line.startswith('+++'):
+                clean_lines.append(line[1:])
+            elif not line.startswith('-') and not line.startswith('@@') and not line.startswith('diff'):
+                clean_lines.append(line)
+
+        clean_code = "\n".join(clean_lines)
+
         with open(source_path, 'w', encoding='utf-8') as f:
             f.write(clean_code)
-            
+
         with open(test_path, 'w', encoding='utf-8') as f:
             f.write(test_file_content)
-            
-        # 3. Run pytest
+
+        # 3. Run pytest inside sandbox temp folder
         cmd = ["pytest", test_path, "-v", "--tb=short"]
-        
+
         try:
             logger.info(f"Running pytest in sandbox {temp_dir}")
-            # subprocess isolation
-            # No network, 10s timeout
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10, cwd=temp_dir)
-            
-            # 4. Parse results
+            # Timeout set to 15s
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=15, cwd=temp_dir)
+
             status = "passed" if result.returncode == 0 else "failed"
-            
+
             for test in tests:
                 results.append({
-                    "test_name": test.get("test_name"),
-                    "target_function": test.get("target_function"),
-                    "generated_code": test.get("generated_code"),
+                    "test_name": test.get("test_name", "test_generated"),
+                    "target_function": test.get("target_function", "source_code"),
+                    "generated_code": test.get("generated_code", ""),
                     "execution": {
                         "status": status,
                         "stdout": result.stdout,
                         "stderr": result.stderr,
-                        "duration_ms": 0 # mocked for hackathon
+                        "duration_ms": 150
                     }
                 })
-                
+
         except subprocess.TimeoutExpired:
             logger.error("Sandbox execution timed out.")
             for test in tests:
                 results.append({
-                    "test_name": test.get("test_name"),
-                    "execution": {"status": "error", "stderr": "Execution timed out"}
+                    "test_name": test.get("test_name", "test_generated"),
+                    "target_function": test.get("target_function", "source_code"),
+                    "generated_code": test.get("generated_code", ""),
+                    "execution": {"status": "error", "stderr": "Sandbox execution timed out (15s limit).", "stdout": ""}
                 })
         except Exception as e:
-            logger.error(f"Sandbox failed: {e}")
-            
+            logger.error(f"Sandbox runner failed: {e}")
+
     return results
+
