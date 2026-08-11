@@ -96,32 +96,29 @@ export default function DiffSubmitter({ onResults, onError, setLoading, setAnaly
   const lineCount = diffText ? diffText.split('\n').length : 0;
 
   return (
-    <div className="glass-panel glowing-border p-6 rounded-2xl shadow-2xl flex flex-col relative overflow-hidden float-hover">
-      {/* Top Cyberpunk Accent Line */}
-      <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-cyan-400 to-purple-500 opacity-80" />
-
+    <div className="glass-panel p-6 rounded-2xl shadow-xl flex flex-col relative overflow-hidden float-hover border border-zinc-800/80">
       <div className="flex items-center justify-between mb-5">
-        <h2 className="text-lg font-bold text-white flex items-center tracking-tight font-sans">
-          <svg className="w-5 h-5 mr-2 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <h2 className="text-base font-semibold text-white flex items-center tracking-tight font-sans">
+          <svg className="w-4 h-4 mr-2 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
           </svg>
-          Code / PR Input
+          Input Code / PR
         </h2>
         {sourceType === 'raw_diff' && lineCount > 0 && (
-          <span className="text-xs font-mono text-cyan-300 bg-[#050505] px-2.5 py-1 rounded-full border border-white/10">
+          <span className="text-xs font-mono text-zinc-400 bg-zinc-900 px-2.5 py-1 rounded-full border border-zinc-800">
             {lineCount} lines
           </span>
         )}
       </div>
 
       {/* Tabs */}
-      <div className="grid grid-cols-2 p-1 bg-[#050505] rounded-xl mb-5 border border-white/10">
+      <div className="grid grid-cols-2 p-1 bg-zinc-900/90 rounded-xl mb-5 border border-zinc-800">
         <button
           type="button"
-          className={`py-2 px-3 text-xs font-semibold rounded-lg transition-all flex items-center justify-center space-x-2 font-mono ${
+          className={`py-2 px-3 text-xs font-medium rounded-lg transition-all flex items-center justify-center space-x-2 font-mono ${
             sourceType === 'raw_diff'
-              ? 'bg-gradient-to-r from-cyan-500/20 to-purple-500/20 text-cyan-300 border border-cyan-500/30 shadow-sm'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
+              ? 'bg-zinc-800 text-white shadow-sm'
+              : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50'
           }`}
           onClick={() => setSourceType('raw_diff')}
         >
@@ -133,10 +130,10 @@ export default function DiffSubmitter({ onResults, onError, setLoading, setAnaly
 
         <button
           type="button"
-          className={`py-2 px-3 text-xs font-semibold rounded-lg transition-all flex items-center justify-center space-x-2 font-mono ${
+          className={`py-2 px-3 text-xs font-medium rounded-lg transition-all flex items-center justify-center space-x-2 font-mono ${
             sourceType === 'github_pr'
-              ? 'bg-gradient-to-r from-cyan-500/20 to-purple-500/20 text-cyan-300 border border-cyan-500/30 shadow-sm'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
+              ? 'bg-zinc-800 text-white shadow-sm'
+              : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50'
           }`}
           onClick={() => setSourceType('github_pr')}
         >
@@ -151,7 +148,7 @@ export default function DiffSubmitter({ onResults, onError, setLoading, setAnaly
         {sourceType === 'raw_diff' ? (
           <div className="flex-1 flex flex-col mb-4">
             <textarea
-              className="w-full h-80 p-4 bg-[#050505] border border-white/10 rounded-xl text-slate-200 font-mono text-xs focus:outline-none focus:border-cyan-400/80 focus:ring-2 focus:ring-cyan-500/20 transition-all resize-none shadow-inner leading-relaxed"
+              className="w-full h-80 p-4 bg-[#09090b] border border-zinc-800 rounded-xl text-zinc-200 font-mono text-xs focus:outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-500 transition-all resize-none shadow-inner leading-relaxed"
               placeholder={`// Paste python code or git diff...
 def validate_token(token: str):
     return eval(token)`}
@@ -162,34 +159,34 @@ def validate_token(token: str):
         ) : (
           <div className="flex-1 flex flex-col justify-between mb-4 space-y-4">
             <div className="space-y-2">
-              <label className="block text-xs font-semibold text-slate-300">GitHub Pull Request Link</label>
+              <label className="block text-xs font-medium text-zinc-300">GitHub Pull Request Link</label>
               <input
                 type="url"
-                className="w-full p-3.5 bg-[#050505] border border-white/10 rounded-xl text-slate-200 text-xs font-mono focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20 transition-all shadow-inner"
+                className="w-full p-3.5 bg-[#09090b] border border-zinc-800 rounded-xl text-zinc-200 text-xs font-mono focus:outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-500 transition-all shadow-inner"
                 placeholder="https://github.com/pallets/flask/pull/5001"
                 value={prUrl}
                 onChange={(e) => setPrUrl(e.target.value)}
               />
             </div>
 
-            <div className="p-4 bg-[#0f0d15] rounded-xl border border-white/10 text-xs text-slate-400 space-y-2">
-              <div className="flex items-center space-x-2 text-cyan-300 font-medium">
-                <svg className="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="p-4 bg-zinc-900/60 rounded-xl border border-zinc-800 text-xs text-zinc-400 space-y-2">
+              <div className="flex items-center space-x-2 text-zinc-300 font-medium">
+                <svg className="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <span>Supported Public Repos</span>
               </div>
               <p className="leading-relaxed">
-                CodeSleuth automatically fetches changed diff hunks via GitHub's API. Private repos require a <code className="text-cyan-300 bg-[#050505] px-1 py-0.5 rounded border border-white/10">GITHUB_TOKEN</code> set in your environment.
+                CodeSleuth automatically fetches changed diff hunks via GitHub's API. Private repos require a <code className="text-zinc-300 bg-zinc-950 px-1 py-0.5 rounded border border-zinc-800">GITHUB_TOKEN</code> set in your environment.
               </p>
             </div>
           </div>
         )}
 
         {/* Privacy notice */}
-        <div className="mb-4 flex items-center justify-between text-[11px] text-slate-400 px-1 font-mono">
+        <div className="mb-4 flex items-center justify-between text-[11px] text-zinc-500 px-1 font-mono">
           <span className="flex items-center">
-            <svg className="w-3.5 h-3.5 mr-1 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-3.5 h-3.5 mr-1 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
             </svg>
             Audited locally &amp; processed via Gemini AI
@@ -198,9 +195,9 @@ def validate_token(token: str):
 
         <button
           type="submit"
-          className="btn-primary w-full text-black font-bold py-3.5 px-4 rounded-xl transition-all font-mono text-xs tracking-wider uppercase flex items-center justify-center space-x-2 shadow-[0_0_20px_rgba(34,211,238,0.3)]"
+          className="btn-primary w-full text-zinc-950 font-semibold py-3 px-4 rounded-xl transition-all font-sans text-xs tracking-wide uppercase flex items-center justify-center space-x-2 active:scale-98"
         >
-          <svg className="w-4 h-4 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-4 h-4 text-zinc-950" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
