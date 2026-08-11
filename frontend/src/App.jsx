@@ -25,7 +25,7 @@ function App() {
 
   // Check health on mount
   useEffect(() => {
-    fetch('http://localhost:8001/health')
+    fetch('http://localhost:8000/health')
       .then(res => res.json())
       .then(data => setHealth(data))
       .catch(() => setHealth({ status: 'offline' }));
