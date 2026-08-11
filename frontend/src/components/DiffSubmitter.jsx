@@ -23,7 +23,12 @@ export default function DiffSubmitter({ onResults, onError, setLoading, setAnaly
 
     setLoading(true);
     onError(null);
-    if (setAnalysisStep) setAnalysisStep('1/4 Fetching and normalizing code diff...');
+
+    const initialStep = sourceType === 'github_pr' 
+      ? '1/2 Fetching GitHub PR & Running AI Review...'
+      : '1/2 Running Semgrep Static Audit & Gemini AI Review...';
+      
+    if (setAnalysisStep) setAnalysisStep(initialStep);
 
     try {
       const payload = {
@@ -37,8 +42,6 @@ export default function DiffSubmitter({ onResults, onError, setLoading, setAnaly
         payload.pr_url = prUrl;
       }
 
-      if (setAnalysisStep) setAnalysisStep('2/4 Running Semgrep & Gemini AI Review...');
-
       const response = await fetch(`${API_BASE_URL}/review`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -48,18 +51,24 @@ export default function DiffSubmitter({ onResults, onError, setLoading, setAnaly
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
         let message = errData.detail?.detail || errData.detail?.error || errData.detail || `Server returned HTTP ${response.status}`;
+        
         if (response.status === 429) {
-          message = "Gemini API rate limit reached. Retrying short moment...";
+          message = "Gemini API rate limit reached. Please generate a new API key in Google AI Studio and update your backend .env file.";
         } else if (response.status === 413) {
           message = "Code diff exceeds 2000 lines limit. Please submit a smaller PR or diff snippet.";
+        } else if (response.status === 406) {
+          message = "This GitHub PR modifies too many files (>300) and cannot be fetched via the GitHub API. Please submit a smaller PR.";
+        } else if (response.status === 403 && message.includes('rate limit')) {
+          message = "GitHub API rate limit exceeded. Please add a GITHUB_TOKEN to your backend .env file.";
         }
+        
         throw new Error(message);
       }
 
       const reviewData = await response.json();
 
-      // Trigger Pytest Sandbox Generation in background
-      if (setAnalysisStep) setAnalysisStep('3/4 Generating & executing Pytest sandbox...');
+      // Trigger Pytest Sandbox Generation in background (Real Step 2)
+      if (setAnalysisStep) setAnalysisStep('2/2 Generating & Executing Pytest Sandbox...');
 
       fetch(`${API_BASE_URL}/tests`, {
         method: 'POST',
@@ -75,7 +84,6 @@ export default function DiffSubmitter({ onResults, onError, setLoading, setAnaly
         })
         .catch(err => console.error("Test sandbox failed:", err));
 
-      if (setAnalysisStep) setAnalysisStep('4/4 Rendering findings panel...');
       onResults(reviewData);
 
     } catch (err) {

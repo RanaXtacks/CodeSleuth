@@ -23,12 +23,17 @@ function App() {
   const [health, setHealth] = useState(null);
   const [presetDiff, setPresetDiff] = useState('');
 
-  // Check health on mount
+  // Check health periodically
   useEffect(() => {
-    fetch('http://localhost:8000/health')
-      .then(res => res.json())
-      .then(data => setHealth(data))
-      .catch(() => setHealth({ status: 'offline' }));
+    const checkHealth = () => {
+      fetch('http://localhost:8000/health')
+        .then(res => res.json())
+        .then(data => setHealth(data))
+        .catch(() => setHealth({ status: 'offline' }));
+    };
+    checkHealth();
+    const interval = setInterval(checkHealth, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleInjectSample = () => {

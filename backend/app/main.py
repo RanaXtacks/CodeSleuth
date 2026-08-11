@@ -95,7 +95,15 @@ async def review_code(payload: dict):
             except ValueError as ve:
                 raise HTTPException(status_code=400, detail={"error": "invalid_input", "detail": str(ve)})
             except Exception as e:
-                raise HTTPException(status_code=502, detail={"error": "upstream_failure", "detail": str(e), "upstream": "github"})
+                err_str = str(e).lower()
+                status = 502
+                if "rate limit" in err_str:
+                    status = 403
+                elif "not found" in err_str:
+                    status = 404
+                elif "406" in err_str or "too_large" in err_str or "too large" in err_str:
+                    status = 406
+                raise HTTPException(status_code=status, detail={"error": "github_error", "detail": str(e), "upstream": "github"})
         else:
             diff_text = payload.get("diff_text", "")
             if not diff_text or not str(diff_text).strip():
@@ -164,8 +172,11 @@ Semgrep Static Analysis Findings:
                 break
 
         if not response or not response.text:
+            status_code = 502
+            if last_error and ("429" in str(last_error) or "resource_exhausted" in str(last_error).lower()):
+                status_code = 429
             raise HTTPException(
-                status_code=502,
+                status_code=status_code,
                 detail={"error": "upstream_failure", "detail": f"Gemini API error: {last_error}", "upstream": "gemini"}
             )
 
@@ -214,7 +225,15 @@ async def generate_tests(payload: dict):
             try:
                 diff_text = await fetch_pr_diff(pr_url)
             except Exception as e:
-                raise HTTPException(status_code=502, detail={"error": "upstream_failure", "detail": str(e), "upstream": "github"})
+                err_str = str(e).lower()
+                status = 502
+                if "rate limit" in err_str:
+                    status = 403
+                elif "not found" in err_str:
+                    status = 404
+                elif "406" in err_str or "too_large" in err_str or "too large" in err_str:
+                    status = 406
+                raise HTTPException(status_code=status, detail={"error": "github_error", "detail": str(e), "upstream": "github"})
         else:
             diff_text = payload.get("diff_text", "")
             if not diff_text or not str(diff_text).strip():
