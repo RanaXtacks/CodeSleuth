@@ -96,7 +96,7 @@ export default function DiffSubmitter({ onResults, onError, setLoading, setAnaly
   const lineCount = diffText ? diffText.split('\n').length : 0;
 
   return (
-    <div className="glass-panel glowing-border p-6 rounded-2xl shadow-2xl flex flex-col relative overflow-hidden">
+    <div className="glass-panel glowing-border p-6 rounded-2xl shadow-2xl flex flex-col relative overflow-hidden float-hover">
       {/* Top Cyberpunk Accent Line */}
       <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-cyan-400 to-purple-500 opacity-80" />
 

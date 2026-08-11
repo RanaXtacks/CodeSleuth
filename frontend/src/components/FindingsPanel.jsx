@@ -71,7 +71,7 @@ export default function FindingsPanel({ results, loading }) {
   const testResults = parsedData.testResults || results?.testResults;
 
   return (
-    <div className="glass-panel p-6 rounded-2xl shadow-2xl border border-white/10 h-full overflow-y-auto space-y-6 relative">
+    <div className="glass-panel p-6 rounded-2xl shadow-2xl border border-white/10 h-full overflow-y-auto space-y-6 relative float-hover">
       {/* Top Cyberpunk Accent Line */}
       <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-purple-500 to-cyan-400 opacity-80" />
 

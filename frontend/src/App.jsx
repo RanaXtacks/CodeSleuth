@@ -42,10 +42,10 @@ function App() {
 
   return (
     <div className="min-h-screen bg-[#14121a] text-[#e6e0ec] font-sans flex flex-col relative selection:bg-cyan-500 selection:text-black">
-      {/* Dynamic Background Radial Gradients */}
+      {/* Dynamic Background Radial Gradients with Floating Animation */}
       <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-cyan-950/20 via-[#14121a] to-[#14121a] pointer-events-none z-0" />
-      <div className="fixed top-0 left-1/4 w-96 h-96 bg-cyan-500/10 rounded-full blur-[128px] pointer-events-none animate-pulse" />
-      <div className="fixed bottom-0 right-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-[128px] pointer-events-none animate-pulse" />
+      <div className="fixed top-0 left-1/4 w-96 h-96 bg-cyan-500/10 rounded-full blur-[128px] pointer-events-none animate-float" />
+      <div className="fixed bottom-0 right-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-[128px] pointer-events-none animate-float-delayed" />
 
       {/* Header */}
       <header className="bg-[#14121a]/80 backdrop-blur-xl border-b border-white/10 sticky top-0 z-50 px-6 py-3.5 shadow-[0_0_20px_rgba(34,211,238,0.08)]">
