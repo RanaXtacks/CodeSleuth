@@ -94,6 +94,19 @@ export default function FindingsPanel({ results, loading }) {
         </div>
       </div>
 
+      {/* Clean Code Banner */}
+      {securityFindings.length === 0 && bugs.length === 0 && performanceNotes.length === 0 && (
+        <div className="p-4 bg-emerald-950/20 border border-emerald-900/40 rounded-xl text-emerald-300 flex items-center space-x-3 text-xs font-sans">
+          <svg className="w-5 h-5 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <div>
+            <span className="font-semibold text-emerald-200 block">Clean Codebase</span>
+            <span className="text-emerald-300/80">No security vulnerabilities or logic bugs were detected in this submission.</span>
+          </div>
+        </div>
+      )}
+
       {/* Security Findings Section */}
       {securityFindings.length > 0 && (
         <div className="space-y-3">
@@ -229,59 +242,73 @@ export default function FindingsPanel({ results, loading }) {
             )}
           </div>
 
-          <div className="space-y-3">
-            {testResults.tests?.map((test, i) => {
-              const status = test.execution?.status || 'passed';
-              const isPassed = status === 'passed';
+          {(!testResults.tests || testResults.tests.length === 0) ? (
+            <div className="p-4 bg-zinc-900/60 border border-zinc-800 rounded-xl text-zinc-400 text-xs font-sans space-y-1">
+              <div className="flex items-center space-x-2 text-zinc-300 font-medium font-mono">
+                <svg className="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>No Testable Python Functions</span>
+              </div>
+              <p className="leading-relaxed text-zinc-400">
+                The submitted diff does not contain Python function definitions (e.g. documentation, configuration, or non-Python files). For executable unit test demos, click <strong>Load Snippet</strong> in the header!
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {testResults.tests?.map((test, i) => {
+                const status = test.execution?.status || 'passed';
+                const isPassed = status === 'passed';
 
-              return (
-                <div
-                  key={i}
-                  className={`p-4 rounded-xl border space-y-3 transition-all ${
-                    isPassed
-                      ? 'bg-zinc-900/90 border-emerald-900/30'
-                      : 'bg-zinc-900/90 border-rose-900/30'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono text-xs font-semibold text-zinc-300 flex items-center">
-                      <span className={`w-1.5 h-1.5 rounded-full mr-2 ${isPassed ? 'bg-emerald-400' : 'bg-rose-400'}`} />
-                      {test.test_name || `test_case_${i + 1}`}
-                    </span>
-                    <span
-                      className={`text-[10px] font-semibold uppercase px-2.5 py-0.5 rounded-full border ${
-                        isPassed
-                          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                          : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
-                      }`}
-                    >
-                      {status}
-                    </span>
-                  </div>
-
-                  <div>
-                    <span className="text-[10px] uppercase font-medium text-zinc-500 tracking-wider font-mono">
-                      Generated Pytest Suite:
-                    </span>
-                    <pre className="mt-1 p-3 bg-zinc-950 rounded-lg text-[11px] font-mono text-zinc-300 border border-zinc-800 overflow-x-auto max-h-48 leading-relaxed">
-                      {test.generated_code}
-                    </pre>
-                  </div>
-
-                  {test.execution?.stderr && (
-                    <div>
-                      <span className="text-[10px] uppercase font-medium text-rose-400 tracking-wider font-mono">
-                        Sandbox Output Log:
+                return (
+                  <div
+                    key={i}
+                    className={`p-4 rounded-xl border space-y-3 transition-all ${
+                      isPassed
+                        ? 'bg-zinc-900/90 border-emerald-900/30'
+                        : 'bg-zinc-900/90 border-rose-900/30'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono text-xs font-semibold text-zinc-300 flex items-center">
+                        <span className={`w-1.5 h-1.5 rounded-full mr-2 ${isPassed ? 'bg-emerald-400' : 'bg-rose-400'}`} />
+                        {test.test_name || `test_case_${i + 1}`}
                       </span>
-                      <pre className="mt-1 p-3 bg-zinc-950 border border-rose-900/30 rounded-lg text-[11px] font-mono text-rose-300 overflow-x-auto max-h-36 whitespace-pre-wrap">
-                        {test.execution.stderr}
+                      <span
+                        className={`text-[10px] font-semibold uppercase px-2.5 py-0.5 rounded-full border ${
+                          isPassed
+                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                            : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                        }`}
+                      >
+                        {status}
+                      </span>
+                    </div>
+
+                    <div>
+                      <span className="text-[10px] uppercase font-medium text-zinc-500 tracking-wider font-mono">
+                        Generated Pytest Suite:
+                      </span>
+                      <pre className="mt-1 p-3 bg-zinc-950 rounded-lg text-[11px] font-mono text-zinc-300 border border-zinc-800 overflow-x-auto max-h-48 leading-relaxed">
+                        {test.generated_code}
                       </pre>
                     </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+
+                    {test.execution?.stderr && (
+                      <div>
+                        <span className="text-[10px] uppercase font-medium text-rose-400 tracking-wider font-mono">
+                          Sandbox Output Log:
+                        </span>
+                        <pre className="mt-1 p-3 bg-zinc-950 border border-rose-900/30 rounded-lg text-[11px] font-mono text-rose-300 overflow-x-auto max-h-36 whitespace-pre-wrap">
+                          {test.execution.stderr}
+                        </pre>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
     </div>
