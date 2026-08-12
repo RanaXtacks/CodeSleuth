@@ -165,7 +165,6 @@ npm run dev
 | `/docs` | `GET` | None | Interactive OpenAPI Swagger UI documentation |
 
 
-
 ## 📄 License
 
 MIT License © 2026 CodeSleuth Team
