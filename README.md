@@ -1,47 +1,85 @@
 # CodeSleuth — AI-Powered Code Security Audit & Sandboxed Test Execution Engine 🛡️⚡
 
-> **Submission-Ready Prototype for Hackathons**  
-> *Grounded AI Code Reviews • Semgrep Static Rules • Isolated Pytest Sandbox Execution • GitHub PR Analysis*
+[![Python Version](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.100%2B-009688.svg)](https://fastapi.tiangolo.com/)
+[![React](https://img.shields.io/badge/React-18-61DAFB.svg)](https://reactjs.org/)
+[![Vite](https://img.shields.io/badge/Vite-5-646CFF.svg)](https://vitejs.dev/)
+[![Google Gemini](https://img.shields.io/badge/AI-Google%20Gemini%20API-4285F4.svg)](https://ai.google.dev/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+> **Submission-Ready Prototype for International Hackathons**  
+> *Grounded AI Reviews • Semgrep Static Rules • Isolated Pytest Sandbox Execution • Live GitHub PR Analysis*
 
 ---
 
-## 📸 Overview
+## 🌟 Executive Summary & Problem Statement
 
-**CodeSleuth** (GitMentor) is a production-grade, AI-assisted code review and automated test execution platform. Standard AI code review tools often hallucinate security risks or output broken unit tests. CodeSleuth solves this by:
+Standard AI code review tools often hallucinate security vulnerabilities that don't exist, output unverified code fixes, or generate unit tests that fail to compile. 
 
-1. **Static Analysis Grounding**: Grounding Google Gemini AI using deterministic **Semgrep** security rulesets.
-2. **Real Pytest Sandbox Execution**: Writing Pytest unit test suites and executing them live inside an **isolated temporary sandbox runner**.
-3. **GitHub Pull Request Integration**: Fetching raw diff hunks directly from public GitHub PR URLs.
+**CodeSleuth** (GitMentor) solves this with a **Dual-Layer Grounded Intelligence Engine**:
+1. **Static Analysis Grounding**: Integrates **Semgrep** rulesets (`p/security-audit`) to inject deterministic vulnerability evidence into Google Gemini AI prompts, eliminating AI security hallucinations.
+2. **Real Pytest Sandbox Runner**: Generates unit test suites and executes them live in an **isolated temporary directory sandbox (`tempfile.TemporaryDirectory()`)**, capturing real-time terminal stdout/stderr logs and returning empirical execution proof (*e.g., "8 passed in 0.13s"*).
+3. **GitHub Pull Request Fetcher**: Direct integration with public GitHub Pull Request URLs via `api.github.com`.
 
 ---
 
 ## 🏗️ System Architecture
 
 ```
-┌────────────────────────┐      ┌────────────────────────────────────────────────────────┐      ┌────────────────────┐
-│   React + Vite UI      │─────▶│                    FastAPI Backend                     │─────▶│  Google Gemini AI  │
-│ (Port 5173 / Glass UI) │◀─────│                 (Port 8001 / Async)                    │◀─────│  (google-genai)    │
-└────────────────────────┘      │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │      └────────────────────┘
-                                │  │ GitHub PR    │  │ Semgrep      │  │ Pytest       │  │
-                                │  │ Fetcher      │  │ Rulesets     │  │ Sandbox      │  │
-                                │  └──────────────┘  └──────────────┘  └──────────────┘  │
-                                └────────────────────────────────────────────────────────┘
-                                           │
-                                           ▼
-                                ┌────────────────────┐
-                                │   GitHub REST API  │
-                                └────────────────────┘
+┌────────────────────────────────┐      ┌────────────────────────────────────────────────────────┐      ┌─────────────────────────┐
+│        React 18 + Vite UI      │─────▶│                    FastAPI Backend                     │─────▶│    Google Gemini AI     │
+│ (Port 5173 / Glassmorphic UI)  │◀─────│                 (Port 8001 / Async)                    │◀─────│ (gemini-3.5/3.6-flash) │
+└────────────────────────────────┘      │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │      └─────────────────────────┘
+                                        │  │ GitHub PR    │  │ Semgrep      │  │ Pytest       │  │
+                                        │  │ Fetcher      │  │ Rulesets     │  │ Sandbox      │  │
+                                        │  └──────────────┘  └──────────────┘  └──────────────┘  │
+                                        └────────────────────────────────────────────────────────┘
+                                                   │
+                                                   ▼
+                                        ┌────────────────────┐
+                                        │   GitHub REST API  │
+                                        └────────────────────┘
 ```
 
 ---
 
-## ✨ Key Features
+## ✨ Key Features & Technical Highlights
 
-- **🛡️ Grounded AI Security Audits**: Eliminates hallucinations by injecting Semgrep static analysis findings into Gemini system prompts.
-- **🧪 Real Pytest Sandbox Runner**: Generates unit test suites, executes them in an isolated temporary directory, and captures live stdout/stderr terminal output.
-- **🔗 GitHub PR URL Analyzer**: Paste any public Pull Request link (e.g. `https://github.com/pallets/flask/pull/5000`) to fetch changed diffs and perform instant security reviews.
-- **⚡ Hot-Reloading Key Management**: Dynamic environment loading automatically detects newly updated Gemini API keys without requiring server restarts.
-- **🎨 Glassmorphic Interface**: Dark theme visual design with real-time subsystem status indicators (`Operational` / `Degraded`), step-by-step progress tracking, and interactive terminal log inspectors.
+- **🛡️ Grounded AI Vulnerability Audit**: Combines static analysis rules with Gemini AI (`google-genai` SDK) to categorize findings into `CRITICAL`, `HIGH`, and `MEDIUM` severity levels with actionable fix suggestions.
+- **🧪 Live Pytest Sandbox Execution**: Writes generated test suites to isolated temporary directories, executes `pytest` via subprocess with a 15-second safety timeout, and displays stdout/stderr terminal output.
+- **🔗 GitHub Pull Request Analyzer**: Fetches changed diff hunks directly from any public GitHub PR (e.g. `https://github.com/pallets/flask/pull/5000` or `https://github.com/tiangolo/fastapi/pull/10000`).
+- **⚡ Non-Blocking Concurrency**: Synchronous AI model calls are wrapped in `asyncio.to_thread`, keeping the FastAPI main event loop responsive so `GET /health` polling never drops.
+- **🔑 Dynamic API Key Hot-Reloading**: Uses `get_gemini_client()` with `load_dotenv(override=True)` to instantly detect new Gemini API keys in `backend/.env` without requiring server restarts.
+- **🎨 Glassmorphic Developer Interface**: Responsive dark theme dashboard, real-time subsystem status indicators (`Operational` / `Degraded`), 1-click **"Load Snippet"** demo button, and interactive terminal log inspectors.
+
+---
+
+## 📂 Repository File Structure
+
+```text
+CodeSleuth/
+├── backend/
+│   ├── app/
+│   │   ├── main.py                  # FastAPI server, endpoints (/review, /tests, /health), CORS
+│   │   └── services/
+│   │       ├── github_fetcher.py    # GitHub REST API pull request diff fetcher
+│   │       ├── semgrep_runner.py    # Semgrep static security audit ruleset runner
+│   │       └── sandbox_runner.py   # Isolated Pytest sandbox subprocess runner
+│   ├── .env.example                 # Template environment configuration
+│   └── requirements.txt             # Backend Python dependencies
+├── frontend/
+│   ├── src/
+│   │   ├── App.jsx                  # Main dashboard layout, health pill, demo button
+│   │   ├── components/
+│   │   │   ├── DiffSubmitter.jsx    # Input tab controls (Raw Diff vs GitHub PR URL)
+│   │   │   └── FindingsPanel.jsx    # Vulnerability cards, clean banners, Pytest terminal log inspector
+│   │   └── index.css                # Inter & JetBrains Mono fonts, glassmorphism CSS
+│   ├── package.json                 # Frontend Node dependencies
+│   └── vite.config.js               # Vite dev server configuration
+├── README.md                        # Master project documentation
+├── architecture.md                  # Detailed architectural specification & error matrix
+└── CodeSleuth_Hackathon_Pitch.pptx  # Widescreen PowerPoint pitch deck with graphics
+```
 
 ---
 
@@ -49,20 +87,20 @@
 
 | Layer | Technology | Purpose |
 |---|---|---|
-| **Frontend** | React 18, Vite, TailwindCSS | High-performance glassmorphism UI & status indicators |
+| **Frontend** | React 18, Vite, TailwindCSS | Glassmorphic UI dashboard & real-time status indicators |
 | **Backend** | FastAPI, Uvicorn, Python 3.10+ | Asynchronous REST API server & pipeline orchestration |
-| **AI Model** | Google Gemini (`google-genai` SDK) | Code review, vulnerability explanation, and test generation |
-| **Static Scan** | Semgrep CLI (`p/security-audit`) | Deterministic security vulnerability grounding |
-| **Sandbox** | Pytest Subprocess Runner | Isolated unit test execution & terminal log capture |
+| **AI Model** | Google Gemini (`google-genai` SDK) | Grounded security audit, code flaw explanation & test generation |
+| **Static Scanner** | Semgrep CLI (`p/security-audit`) | Deterministic vulnerability grounding context |
+| **Sandbox Environment** | Pytest Subprocess Runner | Isolated unit test execution & terminal log capture |
 
 ---
 
-## 🚀 Quick Start Guide
+## 🚀 Installation & Setup Guide
 
 ### Prerequisites
-- Python 3.10+
-- Node.js 18+
-- Google Gemini API Key ([Get one free at Google AI Studio](https://aistudio.google.com/app/apikey))
+- **Python**: 3.10 or higher
+- **Node.js**: 18.0 or higher
+- **Gemini API Key**: Free API key from [Google AI Studio](https://aistudio.google.com/app/apikey)
 
 ---
 
@@ -72,21 +110,21 @@
 # Navigate to backend directory
 cd backend
 
-# Create virtual environment (optional but recommended)
+# Create & activate a virtual environment
 python -m venv venv
-# On Windows:
+# Windows:
 venv\Scripts\activate
-# On macOS/Linux:
+# macOS/Linux:
 # source venv/bin/activate
 
-# Install Python dependencies
+# Install dependencies
 pip install -r requirements.txt
 
-# Configure environment variables
+# Configure environment
 cp .env.example .env
 ```
 
-Set your API key in `backend/.env`:
+Set your Gemini API key in `backend/.env`:
 ```env
 GEMINI_API_KEY=AIzaSy...your_gemini_api_key...
 GEMINI_MODEL=gemini-3.5-flash
@@ -96,14 +134,14 @@ Start the FastAPI backend server:
 ```bash
 uvicorn app.main:app --reload --port 8001
 ```
-*Backend will run at **`http://localhost:8001`***
+> Backend API will run live at **`http://localhost:8001`**
 
 ---
 
 ### 2. Frontend Setup
 
 ```bash
-# Navigate to frontend directory
+# Open a new terminal and navigate to frontend directory
 cd frontend
 
 # Install Node dependencies
@@ -112,31 +150,21 @@ npm install
 # Start Vite dev server
 npm run dev
 ```
-*Frontend will run at **`http://localhost:5173`***
+> Frontend Dashboard will run live at **`http://localhost:5173`**
 
 ---
 
 ## 📡 API Endpoint Reference
 
-| Endpoint | Method | Description |
-|---|---|---|
-| `/` | `GET` | API root metadata & running status |
-| `/health` | `GET` | Real-time subsystem health status (Gemini, Sandbox, Semgrep, GitHub) |
-| `/review` | `POST` | Security audit & code flaw review for raw diffs or GitHub PR URLs |
-| `/tests` | `POST` | Generates Pytest unit tests & executes them inside isolated sandbox |
-| `/docs` | `GET` | Interactive OpenAPI Swagger UI documentation |
+| Endpoint | Method | Request Payload | Description |
+|---|---|---|---|
+| `/` | `GET` | None | API root metadata & running status |
+| `/health` | `GET` | None | Real-time subsystem health status (`gemini`, `semgrep`, `sandbox`, `github`) |
+| `/review` | `POST` | `{"source_type": "raw_diff", "diff_text": "..."}` | Grounded security audit, logic bugs & performance notes |
+| `/tests` | `POST` | `{"source_type": "raw_diff", "diff_text": "..."}` | Generates Pytest unit tests & executes them inside sandbox |
+| `/docs` | `GET` | None | Interactive OpenAPI Swagger UI documentation |
 
----
 
-## 🎙️ 3-Minute Judge Presentation Script
-
-1. **Open App**: Open [http://localhost:5173](http://localhost:5173) and point to the green **`Operational`** header pill.
-2. **Load Snippet**: Click **`Load Snippet`** in the header to inject a Python snippet containing an `eval()` exploit and zero-division edge case.
-3. **Analyze**: Click **`ANALYZE CODE`** to view the **CRITICAL** severity vulnerability card with proposed `json.loads()` fix.
-4. **Pytest Sandbox**: Scroll to **Pytest Sandbox Execution** to show the generated unit tests, green `PASSED` badge, and live terminal stdout logs.
-5. **GitHub PR**: Switch to **`GitHub PR URL`** tab and paste `https://github.com/pallets/flask/pull/5000` to demonstrate live GitHub API pull request auditing.
-
----
 
 ## 📄 License
 
