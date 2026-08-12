@@ -7,7 +7,6 @@
 [![Google Gemini](https://img.shields.io/badge/AI-Google%20Gemini%20API-4285F4.svg)](https://ai.google.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-> **Submission-Ready Prototype for International Hackathons**  
 > *Grounded AI Reviews • Semgrep Static Rules • Isolated Pytest Sandbox Execution • Live GitHub PR Analysis*
 
 ---
@@ -47,7 +46,7 @@ Standard AI code review tools often hallucinate security vulnerabilities that do
 
 - **🛡️ Grounded AI Vulnerability Audit**: Combines static analysis rules with Gemini AI (`google-genai` SDK) to categorize findings into `CRITICAL`, `HIGH`, and `MEDIUM` severity levels with actionable fix suggestions.
 - **🧪 Live Pytest Sandbox Execution**: Writes generated test suites to isolated temporary directories, executes `pytest` via subprocess with a 15-second safety timeout, and displays stdout/stderr terminal output.
-- **🔗 GitHub Pull Request Analyzer**: Fetches changed diff hunks directly from any public GitHub PR (e.g. `https://github.com/pallets/flask/pull/5000` or `https://github.com/tiangolo/fastapi/pull/10000`).
+- **🔗 GitHub Pull Request Analyzer**: Fetches changed diff hunks directly from any public GitHub PR (e.g. `https://github.com/pallets/flask/pull/5000` or `https://github.com/pallets/werkzeug/pull/2800`).
 - **⚡ Non-Blocking Concurrency**: Synchronous AI model calls are wrapped in `asyncio.to_thread`, keeping the FastAPI main event loop responsive so `GET /health` polling never drops.
 - **🔑 Dynamic API Key Hot-Reloading**: Uses `get_gemini_client()` with `load_dotenv(override=True)` to instantly detect new Gemini API keys in `backend/.env` without requiring server restarts.
 - **🎨 Glassmorphic Developer Interface**: Responsive dark theme dashboard, real-time subsystem status indicators (`Operational` / `Degraded`), 1-click **"Load Snippet"** demo button, and interactive terminal log inspectors.
