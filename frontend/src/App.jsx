@@ -26,7 +26,7 @@ function App() {
   // Check health periodically
   useEffect(() => {
     const checkHealth = () => {
-      fetch('http://localhost:8000/health')
+      fetch('http://localhost:8001/health')
         .then(res => res.json())
         .then(data => setHealth(data))
         .catch(() => setHealth({ status: 'offline' }));

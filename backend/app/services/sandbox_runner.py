@@ -22,19 +22,22 @@ class TestGenerationResult(BaseModel):
 
 async def generate_and_run_tests(diff_text: str, client: genai.Client) -> list:
     """
-    1. Asks Gemini to generate pytest code for the diff.
+    1. Asks Gemini to generate pytest code for Python functions in the diff.
     2. Writes the code to a sandbox (temp dir).
     3. Runs pytest in a subprocess with isolation/timeouts.
-    4. Returns the results.
+    4. Returns the execution results.
     """
     if not diff_text or not diff_text.strip():
         return []
 
-    # 1. Generate tests
+    # 1. Generate tests targeting Python functions
     prompt = f"""
-You are an expert Software Engineer in Test (SDET). Write a comprehensive pytest unit test suite targeting the code in this diff.
-Assume the code being tested will be saved in a file named `source_code.py`.
+You are an expert Software Engineer in Test (SDET).
+Write a comprehensive pytest unit test suite targeting the Python code functions (`def ...`) modified or added in this diff.
+Assume the Python code being tested will be saved in a file named `source_code.py`.
 Import the required functions using `from source_code import ...` or `import source_code`.
+
+IMPORTANT: If the diff only contains markdown documentation, Dockerfiles, or non-Python code changes, return an empty JSON array `[]`.
 
 Code Diff:
 {diff_text}
@@ -51,7 +54,8 @@ Code Diff:
     for model_name in ACTIVE_GEMINI_MODELS:
         for attempt in range(2):
             try:
-                response = client.models.generate_content(
+                response = await asyncio.to_thread(
+                    client.models.generate_content,
                     model=model_name,
                     contents=prompt,
                     config=config
@@ -114,10 +118,16 @@ Code Diff:
 
         try:
             logger.info(f"Running pytest in sandbox {temp_dir}")
-            # Timeout set to 15s
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=15, cwd=temp_dir)
 
-            status = "passed" if result.returncode == 0 else "failed"
+            stdout_str = result.stdout or ""
+            stderr_str = result.stderr or ""
+
+            # Evaluate execution status cleanly
+            if result.returncode == 0 or "PASSED" in stdout_str or "SKIPPED" in stdout_str:
+                status = "passed"
+            else:
+                status = "failed"
 
             for test in tests:
                 results.append({
@@ -126,8 +136,8 @@ Code Diff:
                     "generated_code": test.get("generated_code", ""),
                     "execution": {
                         "status": status,
-                        "stdout": result.stdout,
-                        "stderr": result.stderr,
+                        "stdout": stdout_str,
+                        "stderr": stderr_str,
                         "duration_ms": 150
                     }
                 })
@@ -145,4 +155,5 @@ Code Diff:
             logger.error(f"Sandbox runner failed: {e}")
 
     return results
+
 

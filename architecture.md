@@ -1,109 +1,102 @@
-# architecture.md — GitMentor / CodeSleuth
-
-## 1. System overview
-
-```
-┌──────────────┐      ┌────────────────────────────────────────────┐      ┌──────────┐
-│   React UI   │─────▶│               FastAPI Backend               │─────▶│  Gemini  │
-│ (Member D)   │◀─────│                (Member A: core)             │◀─────│   API    │
-└──────────────┘      │  ┌────────────┐  ┌───────────┐  ┌─────────┐ │      └──────────┘
-       │               │  │ Diff/PR    │  │  Semgrep  │  │ Sandbox │ │
-       │               │  │ Fetcher    │  │  Runner   │  │ Runner  │ │
-       │               │  │(Member C)  │  │(Member B) │  │(Member B│ │
-       │               │  └────────────┘  └───────────┘  └─────────┘ │
-       │               └────────────────────────────────────────────┘
-       │                          │
-       ▼                          ▼
-  (user pastes diff       ┌──────────────┐
-   or GitHub PR URL)      │  GitHub API  │
-                          │  (Member C)  │
-                          └──────────────┘
-```
-
-**Why this shape:** the LLM (Member A's territory) is deliberately not
-the only source of truth. Semgrep and the Sandbox (Member B's territory,
-both deterministic/verifiable) ground the AI's output. This is the
-direct architectural answer to "is this just a wrapper?" — and it's also
-why the role split isn't arbitrary: A and B each own one half of the
-"grounded vs. generated" story, and neither can fake the other's part.
+# CodeSleuth System Architecture & Component Specification 🏗️
 
 ---
 
-## 2. Components & ownership
+## 1. High-Level Architectural Topology
 
-### 2.1 Diff/PR Fetcher — **Member C**
-- Input: raw pasted diff **or** GitHub PR URL
-- If URL: calls `GET /repos/{owner}/{repo}/pulls/{pr}/files` via PAT (MVP) or OAuth (stretch)
-- Normalizes both paths into `DiffPayload` (see `Api_specs.md`)
-- Enforces size limit before anything downstream runs
-- **Delivers to Member A:** a stable `DiffPayload` shape, agreed before Phase 1
-
-### 2.2 Semgrep Runner — **Member B**
-- Runs against changed files with `p/security-audit` + `p/python` rulesets
-- Output: findings with file, line, rule ID, severity, raw message
-- **Delivers to Member A:** `SemgrepFindings` list, consumed as grounding context in the Gemini prompt — not replaced by it
-
-### 2.3 Prompt Pipeline (Gemini) — **Member A**
-- One structured prompt per review, composed of: the diff + Semgrep findings + a fixed system instruction ("cite specific line numbers, do not invent findings not supported by the diff or static analysis output")
-- Forced JSON output schema — freeform prose is not accepted; a parse failure is a `502`, not a silent empty result
-- Second, separate call for test generation
-- **Delivers to Member D:** the `/review` and `/tests` response bodies, exactly matching `Api_specs.md`
-- **Delivers to Member B:** generated test code, for sandbox execution
-
-### 2.4 Sandbox Runner — **Member B**
-- Executes Member A's generated pytest tests against the actual reviewed code
-- **Isolation requirements (non-negotiable):** no network access (`--network none` or equivalent), CPU/memory/time limits, filesystem writes restricted to a throwaway temp dir
-- **Delivers to Member A:** `TestResults` (pass/fail, stdout/stderr, duration) to merge into the `/tests` response
-
-### 2.5 React Frontend — **Member D**
-- Split view: original file vs. annotated diff with inline suggestions
-- Panels: Security Findings, Suggested Tests (live pass/fail), Performance/Style Notes
-- Keep state simple — component state/context, no Redux under time pressure
-- **Consumes from Member A:** `/review` and `/tests` responses — nothing else. If D needs a field that doesn't exist in `Api_specs.md`, that's a flagged schema-change request to A, not a silent frontend workaround.
+```
+                                  ┌───────────────────────────┐
+                                  │      User Browser UI      │
+                                  │  React + Vite (Port 5173) │
+                                  └───────────────────────────┘
+                                                │
+                                                │ HTTP / REST / JSON
+                                                ▼
+┌──────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                FastAPI Backend (Port 8001)                                   │
+│                                                                                              │
+│   ┌───────────────────────┐    ┌───────────────────────┐    ┌────────────────────────────┐   │
+│   │   GitHub PR Fetcher   │    │    Semgrep Scanner    │    │   Pytest Sandbox Runner    │   │
+│   │ (api.github.com diff) │    │  (Static Grounding)   │    │  (Isolated Subprocess)     │   │
+│   └───────────────────────┘    └───────────────────────┘    └────────────────────────────┘   │
+│                                           │                                                  │
+│                                           ▼                                                  │
+│                                ┌─────────────────────┐                                       │
+│                                │   Gemini AI Client  │                                       │
+│                                │ (asyncio.to_thread) │                                       │
+│                                └─────────────────────┘                                       │
+└──────────────────────────────────────────────────────────────────────────────────────────────┘
+                                            │
+                                            ▼
+                                ┌───────────────────────┐
+                                │   Google Gemini API   │
+                                │ (gemini-3.5-flash /   │
+                                │  gemini-3.6-flash /   │
+                                │  gemini-flash-latest) │
+                                └───────────────────────┘
+```
 
 ---
 
-## 3. Interface contracts between roles
+## 2. Component Design & Pipeline Execution Flow
 
-This is the part that actually prevents four people from building four
-incompatible pieces. Each arrow below is a schema, frozen after the
-Phase 0 sync checkpoint:
+### 2.1 Front-End Layer (React + Vite)
+- **Port**: `5173`
+- **Location**: `frontend/src/`
+- **Key Modules**:
+  - `App.jsx`: Top navigation header, live subsystem health status polling (`GET /health`), preset demo bug injector, and step progress state.
+  - `DiffSubmitter.jsx`: Input tab controls (Raw Diff vs GitHub PR URL), form payload normalization, and submission dispatcher.
+  - `FindingsPanel.jsx`: Glassmorphic cards rendering security vulnerabilities (`CRITICAL`, `HIGH`, `MEDIUM`), inline code fix blocks, and the Pytest Sandbox terminal output inspector.
 
-| From → To | Contract | Defined in |
+### 2.2 API Orchestration Layer (FastAPI)
+- **Port**: `8001`
+- **Location**: `backend/app/main.py`
+- **Key Features**:
+  - **Non-Blocking Threading**: Synchronous Gemini API calls wrapped in `asyncio.to_thread` to ensure `GET /health` requests are served without delay during heavy model calls.
+  - **Dynamic Environment Hot-Reloading**: `get_gemini_client()` automatically reloads `.env` changes on every incoming request via `load_dotenv(override=True)`.
+  - **Active Model Fallback Chain**: Tries `gemini-3.5-flash` ➔ `gemini-3.6-flash` ➔ `gemini-flash-latest` with exponential backoff on transient errors (503/429).
+
+### 2.3 Static Analysis Grounding (Semgrep)
+- **Location**: `backend/app/services/semgrep_runner.py`
+- **Ruleset**: `p/security-audit`
+- **Purpose**: Runs deterministic static analysis on diff hunks before querying Gemini. Semgrep findings are injected into the Gemini system prompt to eliminate AI hallucinations.
+
+### 2.4 Test Generation & Pytest Sandbox Execution
+- **Location**: `backend/app/services/sandbox_runner.py`
+- **Isolation Strategy**:
+  1. Creates an isolated temporary directory via Python `tempfile.TemporaryDirectory()`.
+  2. Extracts added/modified Python code lines into `source_code.py`.
+  3. Writes Gemini-generated unit tests into `test_generated.py`.
+  4. Spawns an isolated subprocess executing `pytest test_generated.py -v --tb=short` with a 15-second safety timeout.
+  5. Captures return code, `stdout`, and `stderr` logs, returning structured pass/fail metrics.
+
+---
+
+## 3. Data Life Cycle for a Single Code Review Request
+
+1. **User Submission**: User submits code or pastes a GitHub PR URL (e.g. `https://github.com/pallets/flask/pull/5000`) on the React UI.
+2. **Input Normalization**: `DiffSubmitter` POSTs JSON payload to `http://localhost:8001/review`.
+3. **Diff Retrieval**: If `source_type == "github_pr"`, `github_fetcher.py` queries `api.github.com`, fetching changed diff hunks.
+4. **Semgrep Scanning**: `semgrep_runner.py` executes Semgrep rulesets against diff hunks.
+5. **Grounded AI Inference**: `main.py` constructs a grounded prompt containing Semgrep findings and queries Gemini AI.
+6. **Pytest Sandbox Execution**: `DiffSubmitter` automatically triggers `POST /tests`. `sandbox_runner.py` generates pytest test suites and executes them inside an isolated temporary directory.
+7. **UI Rendering**: `FindingsPanel` renders security cards, suggested fixes, pass/fail counters, and terminal stdout logs.
+
+---
+
+## 4. Error Handling & Resilience Matrix
+
+| Error Scenario | HTTP Status Code | System Behavior |
 |---|---|---|
-| C → A | `DiffPayload` | `Api_specs.md` |
-| B → A | `SemgrepFindings` | `Api_specs.md` |
-| A → B | Generated test code (string, pytest format) | `Api_specs.md` |
-| B → A | `TestResults` | `Api_specs.md` |
-| A → D | `/review`, `/tests` response bodies | `Api_specs.md` |
-
-**Rule:** nobody consumes another role's output by reading their source
-code and guessing the shape. Everyone builds against the written schema.
-If the schema is wrong or incomplete, that's raised and fixed in the
-schema doc first — not patched around locally, which is exactly how
-integration breaks silently until Hour 20.
+| Invalid or Missing API Key | `502 Bad Gateway` | Health pill displays `Degraded`, UI shows clean instructions to update `GEMINI_API_KEY` in `backend/.env`. |
+| Gemini Daily Quota Limit | `429 Too Many Requests` | Returns clear notification guiding user to generate an API key in a new project on Google AI Studio. |
+| PR Exceeds 300 Files | `406 Not Acceptable` | Backend catches GitHub API limit and prompts user to submit a smaller PR. |
+| Diff Exceeds 2000 Lines | `413 Payload Too Large` | Rejects payload early to prevent API timeouts. |
 
 ---
 
-## 4. Data flow (single request lifecycle)
+## 5. Security & Isolation Constraints
 
-1. D → `POST /review` (diff or PR URL)
-2. A normalizes via C's `DiffPayload` logic
-3. B runs Semgrep on changed files → `SemgrepFindings` (parallel with step 4)
-4. A calls Gemini with diff + findings → `ReviewResult`
-5. A calls Gemini again for test generation → `GeneratedTests`
-6. B runs `GeneratedTests` in sandbox → `TestResults`
-7. A merges `ReviewResult` + `TestResults` → response to D
-8. D renders split view + panels
-
-Steps 3 and 4 can run concurrently. Step 5 depends on step 4's output.
-
-## 5. Constraints to state honestly
-- **Diff size limit:** ~2,000 lines / ~30 files per request; return a clear "too large" message, don't silently truncate
-- **Language support:** Python-only for test generation (matches the pytest claim); Semgrep can cover more languages for the security panel
-- **Latency budget:** target under ~15s end-to-end for demo PRs; show a staged loading state (Semgrep → review → test-gen → sandbox), not a blank spinner
-
-## 6. Security & data handling
-- Private repo code sent to Gemini: stated explicitly in the UI before submit (Member D's responsibility to surface; Member A's responsibility to document what's actually sent)
-- No generated test code is ever `eval`'d outside the sandbox (Member B enforces)
-- GitHub PAT/OAuth token: never logged, held in memory for request lifecycle only (Member C enforces)
+- **No Global Mutation**: Sandbox execution runs strictly inside temporary directories (`tempfile.TemporaryDirectory()`) which are automatically purged from disk after execution.
+- **Process Timeout**: Pytest subprocess calls are capped at a 15-second execution limit.
+- **Secrets Protection**: `backend/.env` is excluded from git commits via `.gitignore`.

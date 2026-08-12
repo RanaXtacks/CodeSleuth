@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
 
 export default function DiffSubmitter({ onResults, onError, setLoading, setAnalysisStep, presetDiff, setPresetDiff }) {
   const [sourceType, setSourceType] = useState('raw_diff');
@@ -53,7 +53,7 @@ export default function DiffSubmitter({ onResults, onError, setLoading, setAnaly
         let message = errData.detail?.detail || errData.detail?.error || errData.detail || `Server returned HTTP ${response.status}`;
         
         if (response.status === 429) {
-          message = "Gemini API rate limit reached. Please generate a new API key in Google AI Studio and update your backend .env file.";
+          message = "Gemini API daily limit reached (429 Quota Exhausted). Please create an API key in a NEW project at https://aistudio.google.com/app/apikey and update backend/.env";
         } else if (response.status === 413) {
           message = "Code diff exceeds 2000 lines limit. Please submit a smaller PR or diff snippet.";
         } else if (response.status === 406) {
@@ -163,7 +163,7 @@ def validate_token(token: str):
               <input
                 type="url"
                 className="w-full p-3.5 bg-[#09090b] border border-zinc-800 rounded-xl text-zinc-200 text-xs font-mono focus:outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-500 transition-all shadow-inner"
-                placeholder="https://github.com/pallets/flask/pull/5001"
+                placeholder="https://github.com/pallets/flask/pull/5000"
                 value={prUrl}
                 onChange={(e) => setPrUrl(e.target.value)}
               />

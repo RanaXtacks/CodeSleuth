@@ -33,9 +33,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize Gemini Client
-api_key = os.environ.get("GEMINI_API_KEY")
-client = genai.Client(api_key=api_key) if api_key else None
+# Dynamic Gemini Client helper
+def get_gemini_client():
+    load_dotenv(override=True)
+    key = os.environ.get("GEMINI_API_KEY")
+    if not key or key in ["YOUR_NEW_GEMINI_API_KEY_HERE", "YOUR_GEMINI_API_KEY_HERE"]:
+        return None
+    try:
+        return genai.Client(api_key=key)
+    except Exception:
+        return None
 
 # Supported and active Gemini models list with automatic fallback
 ACTIVE_GEMINI_MODELS = [
@@ -80,8 +87,9 @@ class ReviewResult(BaseModel):
 # ---------------------------------------------------------
 @app.post("/review")
 async def review_code(payload: dict):
+    client = get_gemini_client()
     if not client:
-        raise HTTPException(status_code=502, detail={"error": "upstream_failure", "detail": "GEMINI_API_KEY is missing from backend environment variables."})
+        raise HTTPException(status_code=502, detail={"error": "upstream_failure", "detail": "GEMINI_API_KEY is missing or invalid in backend/.env file."})
 
     try:
         # 1. Fetch & Normalize Diff (Member C)
@@ -152,7 +160,8 @@ Semgrep Static Analysis Findings:
         for model_name in ACTIVE_GEMINI_MODELS:
             for attempt in range(2):
                 try:
-                    response = client.models.generate_content(
+                    response = await asyncio.to_thread(
+                        client.models.generate_content,
                         model=model_name,
                         contents=prompt,
                         config=config
@@ -213,8 +222,9 @@ Semgrep Static Analysis Findings:
 
 @app.post("/tests")
 async def generate_tests(payload: dict):
+    client = get_gemini_client()
     if not client:
-        raise HTTPException(status_code=502, detail={"error": "upstream_failure", "detail": "GEMINI_API_KEY is missing."})
+        raise HTTPException(status_code=502, detail={"error": "upstream_failure", "detail": "GEMINI_API_KEY is missing or invalid in backend/.env file."})
 
     try:
         source_type = payload.get("source_type", "raw_diff")
@@ -272,7 +282,8 @@ async def health_check():
     Subsystem health check matching Api_specs.md lines 149-155.
     Performs real checks on Gemini API key, Semgrep CLI, Pytest sandbox, and GitHub token.
     """
-    gemini_status = "ok" if (os.environ.get("GEMINI_API_KEY") and client) else "missing_api_key"
+    current_client = get_gemini_client()
+    gemini_status = "ok" if current_client else "missing_api_key"
 
     semgrep_status = "ok"
     try:
